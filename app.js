@@ -10,10 +10,16 @@ let state = {
 };
 
 const DEFAULT_PIN = '194521';
+const SERVER_ADMIN_PIN = '830927'; // PIN do backend (.env) — usado pra sincronizar com backend
 
 // Admin PIN — stored in localStorage; force change on first login if still default
+// NOTA: o PIN do painel e local (localStorage), mas pra salvar mudancas no backend
+// usamos o SERVER_ADMIN_PIN do .env (nao exposto ao publico)
 function getAdminPin() {
   return localStorage.getItem('rifaAdminPin') || DEFAULT_PIN;
+}
+function getBackendPin() {
+  return SERVER_ADMIN_PIN; // SEMPRE usa o PIN do backend pra sync
 }
 function setAdminPin(pin) {
   localStorage.setItem('rifaAdminPin', pin);
@@ -157,16 +163,19 @@ let _saveTimer = null;
 async function save() {
   // Salva no localStorage como backup
   localStorage.setItem('p7rifas', JSON.stringify(state.rifas));
-  // Debounce sync pro backend
+  // Debounce sync pro backend — SEMPRE usa o PIN do backend (830927)
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     try {
-      const pin = getAdminPin();
-      await fetch(`${API_BASE}/api/rifa/sync-all`, {
+      const pin = getBackendPin();
+      const resp = await fetch(`${API_BASE}/api/rifa/sync-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rifas_data: state.rifas.map(mapFrontendRifa), admin_pin: pin }),
       });
+      if (!resp.ok) {
+        console.warn('sync-all falhou:', resp.status, await resp.text());
+      }
     } catch (e) { console.warn('Erro ao sincronizar com backend:', e); }
   }, 1000);
 }
@@ -1582,6 +1591,30 @@ function formatDate(d) {
     save();
     renderRifa();
   }
+
+  // ===== AUTO-REFRESH: puxa rifas do backend a cada 30s =====
+  // Garante que mudancas do admin e compras de outros usuarios aparecam pra todos
+  setInterval(async () => {
+    // So atualiza se nao tiver modal aberto e nao tiver selecao ativa
+    const modalOpen = document.getElementById('buy-modal') && document.getElementById('buy-modal').style.display === 'flex';
+    const hasSelection = state.selectedNumbers && state.selectedNumbers.length > 0;
+    if (modalOpen || hasSelection) return; // nao interrompe o usuario
+    try {
+      const resp = await fetch(`${API_BASE}/api/rifas`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const newRifas = data.map(mapBackendRifa);
+        // So re-renderiza se mudou algo (evita flicker)
+        const oldJson = JSON.stringify(state.rifas.map(r => ({ s: r.status, n: r.numbers.filter(x => x.status !== 'free').length, w: r.winner })));
+        const newJson = JSON.stringify(newRifas.map(r => ({ s: r.status, n: r.numbers.filter(x => x.status !== 'free').length, w: r.winner })));
+        if (oldJson !== newJson) {
+          state.rifas = newRifas;
+          if (state.currentRifa || document.getElementById('page-main').style.display !== 'none') renderRifa();
+          if (state.adminLogged) renderAdmin();
+        }
+      }
+    } catch (e) { /* backend offline? ignora */ }
+  }, 30000); // 30 segundos
 })();
 
 // Show "Definir meu PIN secreto" button when PIN is still the default (194521)
