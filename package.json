@@ -1,0 +1,9 @@
+{
+  "name": "rifa-premium",
+  "version": "1.0.0",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "node backend/server.js",
+    "start": "node backend/server.js"
+  }
+}

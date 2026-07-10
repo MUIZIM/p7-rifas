@@ -1,0 +1,167 @@
+{
+  "pix_a7d65c1d894b8cf00ce8cbeb": {
+    "id": "pix_a7d65c1d894b8cf00ce8cbeb",
+    "amount": 5050,
+    "description": "Rifa Premium",
+    "buyer_name": "Joao",
+    "buyer_phone": "11999998888",
+    "rifa_id": "rifa_test123",
+    "numbers": [
+      1,
+      2,
+      3
+    ],
+    "status": "pending",
+    "created_at": "2026-07-10T04:44:35.362Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654050505802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD"
+  },
+  "pix_a9a75e3535a3975904136b91": {
+    "id": "pix_a9a75e3535a3975904136b91",
+    "amount": 2500,
+    "description": "",
+    "buyer_name": "Confirmed by admin",
+    "buyer_phone": null,
+    "rifa_id": null,
+    "numbers": [
+      5
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T04:45:01.599Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654025005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T04:45:01.720Z",
+    "confirmed_by": "admin"
+  },
+  "pix_195b9dc4059f7868a82a6363": {
+    "id": "pix_195b9dc4059f7868a82a6363",
+    "amount": 1500,
+    "description": "",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": null,
+    "numbers": [
+      1
+    ],
+    "status": "pending",
+    "created_at": "2026-07-10T04:48:09.996Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654015005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD"
+  },
+  "pix_2fa8896bfec391f8fd86b2df": {
+    "id": "pix_2fa8896bfec391f8fd86b2df",
+    "amount": 1500,
+    "description": "",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": null,
+    "numbers": [
+      1
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T04:49:01.402Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654015005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T04:49:01.517Z",
+    "confirmed_by": "admin"
+  },
+  "pix_005e5f9c006cc791ee03a4ab": {
+    "id": "pix_005e5f9c006cc791ee03a4ab",
+    "amount": 2500,
+    "description": "Rifa Premium Test",
+    "buyer_name": "Joao",
+    "buyer_phone": "11999998888",
+    "rifa_id": "rifa_testxyz",
+    "numbers": [
+      1,
+      2,
+      3
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T04:52:42.107Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654025005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T04:52:42.562Z",
+    "confirmed_by": "admin"
+  },
+  "pix_90523f9e1099496cf1c5f250": {
+    "id": "pix_90523f9e1099496cf1c5f250",
+    "amount": 1000,
+    "description": "test",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": null,
+    "numbers": [
+      1,
+      2
+    ],
+    "status": "pending",
+    "created_at": "2026-07-10T04:55:17.594Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+551194521000052040000530398654010005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD"
+  },
+  "pix_ae0a738b338b7fe571f4f557": {
+    "id": "pix_ae0a738b338b7fe571f4f557",
+    "amount": 450,
+    "description": "iPhone 14 Midnight — Números: 027",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": "demo1",
+    "numbers": [
+      27
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T07:42:09.522Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+55119452100005204000053039865404505802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T07:42:40.261Z"
+  },
+  "pix_ff811553243b263ebfd4ac26": {
+    "id": "pix_ff811553243b263ebfd4ac26",
+    "amount": 900,
+    "description": "iPhone 14 Midnight — Números: 170, 150",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": "demo1",
+    "numbers": [
+      170,
+      150
+    ],
+    "status": "pending",
+    "created_at": "2026-07-10T10:09:47.552Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+55119452100005204000053039865409005802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD"
+  },
+  "pix_697ae70d65f6c75d7f241911": {
+    "id": "pix_697ae70d65f6c75d7f241911",
+    "amount": 450,
+    "description": "iPhone 14 Midnight — Números: 290",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": "demo1",
+    "numbers": [
+      290
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T12:55:49.740Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+55119452100005204000053039865404505802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T12:56:21.362Z"
+  },
+  "pix_651ada308076e471dfaf2530": {
+    "id": "pix_651ada308076e471dfaf2530",
+    "amount": 450,
+    "description": "iPhone 14 Midnight — Números: 029",
+    "buyer_name": null,
+    "buyer_phone": null,
+    "rifa_id": "demo1",
+    "numbers": [
+      29
+    ],
+    "status": "paid",
+    "created_at": "2026-07-10T12:58:17.983Z",
+    "simulated": true,
+    "pix_copy_paste": "00020126580014br.gov.bcb.pix0114+55119452100005204000053039865404505802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD",
+    "paid_at": "2026-07-10T12:58:48.737Z"
+  }
+}

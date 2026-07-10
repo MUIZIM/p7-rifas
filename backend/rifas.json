@@ -1,0 +1,14 @@
+{
+  "rifa_a6a4f5832ab1a26f": {
+    "id": "rifa_a6a4f5832ab1a26f",
+    "title": "Rifa Teste",
+    "description": "",
+    "price": 10,
+    "total_numbers": 100,
+    "draw_date": null,
+    "image": null,
+    "status": "active",
+    "created_at": "2026-07-10T04:41:07.114Z",
+    "sold_numbers": []
+  }
+}
