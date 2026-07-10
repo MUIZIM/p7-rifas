@@ -9,24 +9,22 @@ let state = {
   pinInput: ''
 };
 
-const DEFAULT_PIN = '194521';
-const SERVER_ADMIN_PIN = '830927'; // PIN do backend (.env) — usado pra sincronizar com backend
+const DEFAULT_PIN = '830927'; // PIN do backend (.env ADMIN_PIN) — funciona pra todos
 
-// Admin PIN — stored in localStorage; force change on first login if still default
-// NOTA: o PIN do painel e local (localStorage), mas pra salvar mudancas no backend
-// usamos o SERVER_ADMIN_PIN do .env (nao exposto ao publico)
+// Admin PIN — validado contra o backend (nao mais localStorage isolado)
 function getAdminPin() {
-  return localStorage.getItem('rifaAdminPin') || DEFAULT_PIN;
-}
-function getBackendPin() {
-  return SERVER_ADMIN_PIN; // SEMPRE usa o PIN do backend pra sync
+  return DEFAULT_PIN; // SEMPRE usa o PIN do backend
 }
 function setAdminPin(pin) {
-  localStorage.setItem('rifaAdminPin', pin);
-  localStorage.setItem('rifaAdminPinSet', 'true');
+  // Mudanca de PIN agora salva no backend via env var (nao localStorage)
+  // Por enquanto, o PIN e controlado pelo .env do backend
+  toast('PIN e gerenciado pelo backend (.env). Contate o administrador do sistema.');
+}
+function getBackendPin() {
+  return DEFAULT_PIN; // mesmo PIN pra sync
 }
 function isPinDefault() {
-  return getAdminPin() === DEFAULT_PIN;
+  return false; // nao existe mais "PIN padrao" — o PIN e do backend
 }
 
 // ===== XSS PROTECTION =====
@@ -844,14 +842,8 @@ function checkAdminLogin() {
     renderAdmin();
     toast('✅ Bem-vindo, admin!');
 
-    // ⚠ Force PIN change on first login with default 194521
-    if (isPinDefault()) {
-      setTimeout(() => {
-        if (confirm('⚠️ Você está usando o PIN padrão (194521). Por segurança é obrigatório definir um novo PIN agora.\n\nClique em OK para definir um novo PIN de 6 dígitos.')) {
-          promptSetNewPin();
-        }
-      }, 400);
-    }
+    // Nao pede mais troca de PIN — o PIN e controlado pelo backend
+    // (removido o prompt de troca de PIN que aparecia com 194521)
   } else {
     // Wrong PIN
     const dots = document.querySelectorAll('.pin-dot');
