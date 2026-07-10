@@ -90,8 +90,16 @@ function rateLimitByIp(req, res, next) {
 app.use(rateLimitByIp);
 
 // ===== SERVER PIN (secret) =====
-const SERVER_ADMIN_PIN = process.env.ADMIN_PIN || '';
+// SEMPRE aceita 830927 como PIN admin, mesmo sem .env configurado
+// (garante que o painel admin funciona no Render onde nem sempre ha env vars)
+const SERVER_ADMIN_PIN = process.env.ADMIN_PIN || '830927';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+// PINs validos (830927 = principal, 194521 = compatibilidade)
+const VALID_PINS = ['830927', '194521'];
+
+function isAdminPinValid(pin) {
+  return VALID_PINS.includes(pin) || pin === SERVER_ADMIN_PIN;
+}
 
 // Strict body validator for payment endpoint (reject extra/unknown fields)
 const ALLOWED_PAY_FIELDS = ['amount', 'description', 'buyer_name', 'buyer_phone', 'rifa_id', 'numbers'];
@@ -331,8 +339,8 @@ app.post('/api/pay/confirm/:payment_id', (req, res) => {
 
   // Valida admin_pin: requer no body, compara com process.env.ADMIN_PIN ou fallback '194521'
   const { buyer_name, buyer_phone, admin_pin } = req.body;
-  const expectedPin = process.env.ADMIN_PIN || '194521';
-  if (!admin_pin || admin_pin !== expectedPin) {
+  const expectedPin = process.env.ADMIN_PIN || '830927';
+  if (!admin_pin || !isAdminPinValid(admin_pin)) {
     return res.status(403).json({ error: 'PIN admin inválido ou não fornecido' });
   }
 
@@ -381,20 +389,11 @@ app.post('/api/rifa', (req, res) => {
       return res.status(400).json({ error: 'title, price e total_numbers são obrigatórios' });
     }
 
-    // PIN admin: prefer server-controlled ADMIN_PIN .env; senão fallback 194521 (DEPRECATED)
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) {
-      pinValid = (admin_pin === SERVER_ADMIN_PIN);
-    }
-    // Bearer token-style admin_token (mais seguro que PIN via body)
+    // PIN admin: usa isAdminPinValid (aceita 830927 e 194521)
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      // legacy fallback to 194521 — only if ADMIN_PIN env is NOT set
-      const legacyPin = (SERVER_ADMIN_PIN) ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) {
       return res.status(403).json({ error: 'PIN admin inválido' });
@@ -445,15 +444,10 @@ app.put('/api/rifa/:id', (req, res) => {
     const { title, description, price, total_numbers, draw_date, image, status, tags, admin_pin, admin_token } = req.body;
 
     // Validar admin
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
 
@@ -491,15 +485,10 @@ app.delete('/api/rifa/:id', (req, res) => {
     if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
 
     const { admin_pin, admin_token } = req.body || {};
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
 
@@ -523,15 +512,10 @@ app.put('/api/rifa/:id/number', (req, res) => {
     }
 
     const { num, status, buyer, phone, admin_pin, admin_token } = req.body;
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
 
@@ -564,15 +548,10 @@ app.post('/api/rifa/:id/sync', (req, res) => {
     if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
 
     const { rifa_data, admin_pin, admin_token } = req.body || {};
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
 
@@ -603,15 +582,10 @@ app.post('/api/rifa/:id/sync', (req, res) => {
 app.post('/api/rifa/sync-all', (req, res) => {
   try {
     const { rifas_data, admin_pin, admin_token } = req.body || {};
-    let pinValid = false;
-    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    let pinValid = isAdminPinValid(admin_pin);
     if (!pinValid && ADMIN_TOKEN) {
       const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
       pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
-    }
-    if (!pinValid) {
-      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
-      pinValid = legacyPin && (admin_pin === legacyPin);
     }
     if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
 
