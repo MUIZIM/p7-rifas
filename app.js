@@ -90,13 +90,85 @@ function checkPayRateLimit() {
   return true;
 }
 
-// ===== STORAGE =====
-function save() {
-  localStorage.setItem('p7rifas', JSON.stringify(state.rifas));
+// ===== STORAGE (Backend sync) =====
+// Carrega e salva rifas no backend (nao mais localStorage)
+// Fallback pra localStorage se backend offline
+
+function mapBackendRifa(r) {
+  // Converte formato do backend (title, total_numbers, sold_numbers) pro formato do frontend (name, qty, numbers)
+  const numbers = [];
+  for (let i = 0; i < (r.total_numbers || r.qty || 0); i++) {
+    const sn = (r.sold_numbers || r.numbers || []).find(n => n.num === i + 1);
+    if (sn) {
+      numbers.push({ num: i + 1, status: sn.status || 'free', buyer: sn.buyer || null, phone: sn.phone || null, reservedAt: sn.reservedAt || null, paidAt: sn.paidAt || null });
+    } else {
+      numbers.push({ num: i + 1, status: 'free', buyer: null, phone: null });
+    }
+  }
+  return {
+    id: r.id,
+    name: r.name || r.title || 'Sem nome',
+    desc: r.desc || r.description || '',
+    qty: r.qty || r.total_numbers || 100,
+    price: r.price || 10,
+    date: r.date || (r.draw_date ? r.draw_date.split('T')[0] : ''),
+    img: r.img || r.image || '',
+    tags: r.tags || '',
+    status: r.status || 'active',
+    numbers,
+    winner: r.winner || null,
+    createdAt: r.createdAt || (r.created_at ? new Date(r.created_at).getTime() : Date.now())
+  };
 }
-function load() {
+
+function mapFrontendRifa(r) {
+  // Converte formato do frontend pro backend
+  return {
+    id: r.id,
+    name: r.name,
+    desc: r.desc,
+    price: r.price,
+    qty: r.qty,
+    date: r.date,
+    img: r.img,
+    tags: r.tags,
+    status: r.status,
+    numbers: r.numbers.map(n => ({ num: n.num, status: n.status, buyer: n.buyer, phone: n.phone, reservedAt: n.reservedAt, paidAt: n.paidAt })),
+    winner: r.winner,
+    createdAt: r.createdAt
+  };
+}
+
+async function load() {
+  try {
+    const resp = await fetch(`${API_BASE}/api/rifas`);
+    if (resp.ok) {
+      const data = await resp.json();
+      state.rifas = data.map(mapBackendRifa);
+      return;
+    }
+  } catch (e) { /* fallback pra localStorage */ }
+  // Fallback: localStorage
   const d = localStorage.getItem('p7rifas');
   state.rifas = d ? JSON.parse(d) : [];
+}
+
+let _saveTimer = null;
+async function save() {
+  // Salva no localStorage como backup
+  localStorage.setItem('p7rifas', JSON.stringify(state.rifas));
+  // Debounce sync pro backend
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      const pin = getAdminPin();
+      await fetch(`${API_BASE}/api/rifa/sync-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rifas_data: state.rifas.map(mapFrontendRifa), admin_pin: pin }),
+      });
+    } catch (e) { console.warn('Erro ao sincronizar com backend:', e); }
+  }, 1000);
 }
 
 // ===== UTILS =====
@@ -391,7 +463,8 @@ function checkExpiredReservations() {
 }
 
 // ===== PAYMENT FLOW (Pantera Pay PIX) =====
-const API_BASE = window.location.origin; // mesma origem (funciona local e online)
+// Se rodando local (file://), usa localhost:3002. Se online, usa a mesma origem
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3002' : window.location.origin;
 let currentPayment = null;
 let paymentPollTimer = null;
 let pendingBuyData = null;
@@ -1122,7 +1195,7 @@ function renderConfig() {
 }
 
 function checkBackendStatus() {
-  fetch('http://localhost:3002/api/health').then(r => r.json()).then(d => {
+  fetch(`${API_BASE}/api/health`).then(r => r.json()).then(d => {
     document.getElementById('cfg-backend-status').textContent = '✅ Online';
     document.getElementById('cfg-pp-status').textContent = d.pantera_pay.includes('configurada') && !d.pantera_pay.includes('nao') ? '✅ Configurada' : '⚠️ Não configurada';
     document.getElementById('cfg-pp-status').style.color = d.pantera_pay.includes('configurada') && !d.pantera_pay.includes('nao') ? 'var(--success)' : 'var(--warning)';
@@ -1480,34 +1553,36 @@ function formatDate(d) {
 }
 
 // ===== INIT =====
-load();
-renderRifa();
-startReservationChecker(); // Start 30-min reservation expiry checker
-// Seed demo data if empty (first visit)
-if (!state.rifas.length) {
-  state.rifas = [{
-    id: 'demo1',
-    name: 'iPhone 14 Midnight',
-    desc: '100% original, nunca aberto, 90% de bateria, Face ID ok. Envio para todo o Brasil.',
-    qty: 400,
-    price: 10,
-    date: '',
-    img: '',
-    tags: 'Nunca aberto, Bateria 90%, Envio Brasil, Face ID ok',
-    status: 'active',
-    numbers: Array.from({length: 400}, (_, i) => ({num: i+1, status: 'free', buyer: null, phone: null})),
-    winner: null,
-    createdAt: Date.now()
-  }];
-  // Add some demo sales
-  [0, 1, 2, 6, 19].forEach(i => {
-    state.rifas[0].numbers[i] = {num: i+1, status: 'reserved', buyer: 'João Silva', phone: '11988887777'};
-  });
-  state.rifas[0].numbers[3] = {num: 4, status: 'paid', buyer: 'Maria Santos', phone: '11999998888'};
-  state.rifas[0].numbers[5] = {num: 6, status: 'paid', buyer: 'Pedro Costa', phone: '11777766666'};
-  save();
+(async function init() {
+  await load();
   renderRifa();
-}
+  startReservationChecker();
+  // Seed demo data if empty (first visit) — so se backend tambem estiver vazio
+  if (!state.rifas.length) {
+    state.rifas = [{
+      id: 'demo1',
+      name: 'iPhone 14 Midnight',
+      desc: '100% original, nunca aberto, 90% de bateria, Face ID ok. Envio para todo o Brasil.',
+      qty: 400,
+      price: 10,
+      date: '',
+      img: '',
+      tags: 'Nunca aberto, Bateria 90%, Envio Brasil, Face ID ok',
+      status: 'active',
+      numbers: Array.from({length: 400}, (_, i) => ({num: i+1, status: 'free', buyer: null, phone: null})),
+      winner: null,
+      createdAt: Date.now()
+    }];
+    // Add some demo sales
+    [0, 1, 2, 6, 19].forEach(i => {
+      state.rifas[0].numbers[i] = {num: i+1, status: 'reserved', buyer: 'João Silva', phone: '11988887777'};
+    });
+    state.rifas[0].numbers[3] = {num: 4, status: 'paid', buyer: 'Maria Santos', phone: '11999998888'};
+    state.rifas[0].numbers[5] = {num: 6, status: 'paid', buyer: 'Pedro Costa', phone: '11777766666'};
+    save();
+    renderRifa();
+  }
+})();
 
 // Show "Definir meu PIN secreto" button when PIN is still the default (194521)
 (function initPinUi() {

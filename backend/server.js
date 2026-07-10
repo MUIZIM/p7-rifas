@@ -18,6 +18,43 @@ const PORT = process.env.PORT || 3002;
 const SECRET_KEY = process.env.PAYMENT_SECRET_KEY || '';
 const API_BASE = 'https://api.panterapay.finance';
 
+// ===== GERADOR DE BR CODE PIX (fallback manual com crc16-ccitt) =====
+function generatePixCode(pixKey, merchantName, merchantCity, amountCents) {
+  function pad(t) { return String(t).length.toString().padStart(2, '0') + t; }
+  function sanitize(s) { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().slice(0, 25); }
+  function crc16(str) {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j++) {
+        crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+        crc &= 0xFFFF;
+      }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  }
+  const gui = 'br.gov.bcb.pix';
+  const mai = '00' + pad(gui) + '01' + pad(pixKey);
+  const addData = '05' + pad('***');
+  const amountStr = (amountCents / 100).toFixed(2);
+  const name = sanitize(merchantName);
+  const city = sanitize(merchantCity);
+  let p = '';
+  p += '00' + pad('01');
+  p += '01' + pad('STATIC');
+  p += '26' + pad(mai);
+  p += '52' + pad('0000');
+  p += '53' + pad('986');
+  if (amountCents > 0) p += '54' + pad(amountStr);
+  p += '58' + pad('BR');
+  p += '59' + pad(name);
+  p += '60' + pad(city);
+  p += '62' + pad(addData);
+  p += '6304';
+  p += crc16(p);
+  return p;
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -206,15 +243,26 @@ app.post('/api/pay/pix', async (req, res) => {
         paymentData.fee = data.fee || 0;
         paymentData.real = true;
       } else {
-        // Pantera Pay rejeitou (chave invalida/revogada) — fallback para modo simulado
-        console.warn('⚠️  Pantera Pay rejeitou a cobranca, usando modo simulado:', data?.message || data?.code || 'sem detalhes');
+        // Pantera Pay rejeitou (chave invalida/revogada) — fallback para modo manual
+        // Usa a chave PIX real do recebedor (configurada no frontend admin ou .env)
+        const pixKey = process.env.PIX_KEY || 'contato@p7rifas.com.br';
+        const pixName = process.env.PIX_NAME || 'RIFA PREMIUM';
+        const pixCity = process.env.PIX_CITY || 'SAO PAULO';
+        console.warn('⚠️  Pantera Pay rejeitou a cobranca, usando modo manual com chave PIX real:', data?.message || data?.code || 'sem detalhes');
         paymentData.simulated = true;
-        paymentData.pix_copy_paste = '00020126580014br.gov.bcb.pix0114+5511945210000520400005303986540' + amountCents + '5802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD';
+        paymentData.manual_pix = true;
+        paymentData.pix_key = pixKey;
+        paymentData.pix_copy_paste = generatePixCode(pixKey, pixName, pixCity, amountCents);
       }
     } else {
-      // Modo simulado (sem chave configurada)
+      // Modo manual (sem chave Pantera Pay configurada) — usa chave PIX real do recebedor
+      const pixKey = process.env.PIX_KEY || 'contato@p7rifas.com.br';
+      const pixName = process.env.PIX_NAME || 'RIFA PREMIUM';
+      const pixCity = process.env.PIX_CITY || 'SAO PAULO';
       paymentData.simulated = true;
-      paymentData.pix_copy_paste = '00020126580014br.gov.bcb.pix0114+5511945210000520400005303986540' + amountCents + '5802BR5913RIFA PREMIUM6011SAO PAULO62070503***6304ABCD';
+      paymentData.manual_pix = true;
+      paymentData.pix_key = pixKey;
+      paymentData.pix_copy_paste = generatePixCode(pixKey, pixName, pixCity, amountCents);
     }
 
     payments[payment_id] = paymentData;
@@ -377,6 +425,222 @@ app.post('/api/rifa', (req, res) => {
     res.json(rifaData);
   } catch (err) {
     console.error('Erro /api/rifa:', err);
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
+// ===== PUT /api/rifa/:id — Atualizar rifa (admin) =====
+app.put('/api/rifa/:id', (req, res) => {
+  try {
+    const ALLOWED = ['title', 'description', 'price', 'total_numbers', 'draw_date', 'image', 'status', 'tags', 'admin_pin', 'admin_token'];
+    for (const k of Object.keys(req.body || {})) {
+      if (!ALLOWED.includes(k)) {
+        return res.status(400).json({ error: 'Campo não permitido: ' + k });
+      }
+    }
+
+    const rifa = rifas[req.params.id];
+    if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
+
+    const { title, description, price, total_numbers, draw_date, image, status, tags, admin_pin, admin_token } = req.body;
+
+    // Validar admin
+    let pinValid = false;
+    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    if (!pinValid && ADMIN_TOKEN) {
+      const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
+      pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
+    }
+    if (!pinValid) {
+      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
+      pinValid = legacyPin && (admin_pin === legacyPin);
+    }
+    if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
+
+    // Atualizar campos
+    if (title !== undefined) rifa.title = String(title).slice(0, 120);
+    if (description !== undefined) rifa.description = String(description).slice(0, 1000);
+    if (price !== undefined && !isNaN(Number(price)) && Number(price) > 0) rifa.price = Number(price);
+    if (total_numbers !== undefined && Number.isInteger(Number(total_numbers))) {
+      const newTotal = Number(total_numbers);
+      // Ajustar array de sold_numbers se aumentou
+      if (newTotal > rifa.total_numbers) {
+        for (let i = rifa.total_numbers; i < newTotal; i++) {
+          rifa.sold_numbers.push({ num: i + 1, status: 'free', buyer: null, phone: null });
+        }
+      }
+      rifa.total_numbers = newTotal;
+    }
+    if (draw_date !== undefined) rifa.draw_date = draw_date || null;
+    if (image !== undefined) rifa.image = image || null;
+    if (status !== undefined) rifa.status = String(status);
+    if (tags !== undefined) rifa.tags = String(tags);
+
+    saveRifas();
+    res.json(rifa);
+  } catch (err) {
+    console.error('Erro PUT /api/rifa:', err);
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
+// ===== DELETE /api/rifa/:id — Deletar rifa (admin) =====
+app.delete('/api/rifa/:id', (req, res) => {
+  try {
+    const rifa = rifas[req.params.id];
+    if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
+
+    const { admin_pin, admin_token } = req.body || {};
+    let pinValid = false;
+    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    if (!pinValid && ADMIN_TOKEN) {
+      const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
+      pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
+    }
+    if (!pinValid) {
+      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
+      pinValid = legacyPin && (admin_pin === legacyPin);
+    }
+    if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
+
+    delete rifas[req.params.id];
+    saveRifas();
+    res.json({ ok: true, deleted: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
+// ===== PUT /api/rifa/:id/number — Atualizar status de um numero (admin) =====
+app.put('/api/rifa/:id/number', (req, res) => {
+  try {
+    const rifa = rifas[req.params.id];
+    if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
+
+    const ALLOWED = ['num', 'status', 'buyer', 'phone', 'admin_pin', 'admin_token'];
+    for (const k of Object.keys(req.body || {})) {
+      if (!ALLOWED.includes(k)) return res.status(400).json({ error: 'Campo não permitido: ' + k });
+    }
+
+    const { num, status, buyer, phone, admin_pin, admin_token } = req.body;
+    let pinValid = false;
+    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    if (!pinValid && ADMIN_TOKEN) {
+      const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
+      pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
+    }
+    if (!pinValid) {
+      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
+      pinValid = legacyPin && (admin_pin === legacyPin);
+    }
+    if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
+
+    // Encontrar ou criar o sold_number
+    let sn = rifa.sold_numbers.find(n => n.num === num);
+    if (!sn && status !== 'free') {
+      sn = { num, status: 'free', buyer: null, phone: null };
+      rifa.sold_numbers.push(sn);
+    }
+    if (sn) {
+      if (status !== undefined) sn.status = status;
+      if (buyer !== undefined) sn.buyer = buyer;
+      if (phone !== undefined) sn.phone = phone;
+      if (status === 'free') {
+        rifa.sold_numbers = rifa.sold_numbers.filter(n => n.num !== num);
+      }
+    }
+
+    saveRifas();
+    res.json(rifa);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
+// ===== POST /api/rifa/:id/sync — Sincronizar rifa completa (admin) =====
+app.post('/api/rifa/:id/sync', (req, res) => {
+  try {
+    const rifa = rifas[req.params.id];
+    if (!rifa) return res.status(404).json({ error: 'Rifa não encontrada' });
+
+    const { rifa_data, admin_pin, admin_token } = req.body || {};
+    let pinValid = false;
+    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    if (!pinValid && ADMIN_TOKEN) {
+      const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
+      pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
+    }
+    if (!pinValid) {
+      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
+      pinValid = legacyPin && (admin_pin === legacyPin);
+    }
+    if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
+
+    // Atualizar rifa com dados completos do frontend
+    if (rifa_data) {
+      rifa.title = rifa_data.name || rifa.title;
+      rifa.description = rifa_data.desc || rifa.description;
+      rifa.price = rifa_data.price || rifa.price;
+      rifa.total_numbers = rifa_data.qty || rifa.total_numbers;
+      rifa.draw_date = rifa_data.date || null;
+      rifa.image = rifa_data.img || null;
+      rifa.tags = rifa_data.tags || '';
+      rifa.status = rifa_data.status || 'active';
+      rifa.sold_numbers = rifa_data.numbers || rifa.sold_numbers;
+      if (rifa_data.winner) rifa.winner = rifa_data.winner;
+      else rifa.winner = null;
+    }
+
+    saveRifas();
+    res.json(rifa);
+  } catch (err) {
+    console.error('Erro sync rifa:', err);
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
+// ===== POST /api/rifa/sync-all — Sincronizar todas as rifas (admin) =====
+app.post('/api/rifa/sync-all', (req, res) => {
+  try {
+    const { rifas_data, admin_pin, admin_token } = req.body || {};
+    let pinValid = false;
+    if (SERVER_ADMIN_PIN) pinValid = (admin_pin === SERVER_ADMIN_PIN);
+    if (!pinValid && ADMIN_TOKEN) {
+      const provided = req.headers.authorization || (admin_token ? 'Bearer ' + admin_token : '');
+      pinValid = (provided === ('Bearer ' + ADMIN_TOKEN)) || (admin_token === ADMIN_TOKEN);
+    }
+    if (!pinValid) {
+      const legacyPin = SERVER_ADMIN_PIN ? null : '194521';
+      pinValid = legacyPin && (admin_pin === legacyPin);
+    }
+    if (!pinValid) return res.status(403).json({ error: 'PIN admin inválido' });
+
+    // Substituir todas as rifas
+    rifas = {};
+    if (Array.isArray(rifas_data)) {
+      rifas_data.forEach(rd => {
+        const id = rd.id || ('rifa_' + crypto.randomBytes(8).toString('hex'));
+        rifas[id] = {
+          id,
+          title: rd.name || 'Sem nome',
+          description: rd.desc || '',
+          price: rd.price || 10,
+          total_numbers: rd.qty || 100,
+          draw_date: rd.date || null,
+          image: rd.img || null,
+          tags: rd.tags || '',
+          status: rd.status || 'active',
+          sold_numbers: rd.numbers || [],
+          winner: rd.winner || null,
+          created_at: rd.createdAt ? new Date(rd.createdAt).toISOString() : new Date().toISOString(),
+        };
+      });
+    }
+
+    saveRifas();
+    res.json(Object.values(rifas));
+  } catch (err) {
+    console.error('Erro sync-all:', err);
     res.status(500).json({ error: 'Erro interno: ' + err.message });
   }
 });
