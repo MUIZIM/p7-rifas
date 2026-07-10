@@ -1,8 +1,8 @@
 {
-  "verify_test": {
-    "id": "verify_test",
-    "title": "Rifa Verificacao",
-    "description": "Teste",
+  "rifa_admin_test": {
+    "id": "rifa_admin_test",
+    "title": "Rifa do Admin (teste)",
+    "description": "Criada pelo painel admin",
     "price": 4.5,
     "total_numbers": 100,
     "draw_date": null,
@@ -12,12 +12,31 @@
     "sold_numbers": [
       {
         "num": 1,
-        "status": "free",
-        "buyer": null,
-        "phone": null
+        "status": "free"
       }
     ],
     "winner": null,
     "created_at": "2025-07-10T16:00:00.000Z"
+  },
+  "rifa_admin_2": {
+    "id": "rifa_admin_2",
+    "title": "iPhone 15 Pro",
+    "description": "Sorteio iPhone 15",
+    "price": 10,
+    "total_numbers": 200,
+    "draw_date": null,
+    "image": null,
+    "tags": "",
+    "status": "active",
+    "sold_numbers": [
+      {
+        "num": 1,
+        "status": "paid",
+        "buyer": "Joao",
+        "phone": "11999998888"
+      }
+    ],
+    "winner": null,
+    "created_at": "2025-07-10T16:00:00.001Z"
   }
 }
