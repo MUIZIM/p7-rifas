@@ -127,6 +127,11 @@ function mapBackendRifa(r) {
 
 function mapFrontendRifa(r) {
   // Converte formato do frontend pro backend
+  // Manda so numeros nao-free (sold_numbers) pra economizar bandwidth
+  const soldNumbers = r.numbers.filter(n => n.status !== 'free').map(n => ({
+    num: n.num, status: n.status, buyer: n.buyer, phone: n.phone,
+    reservedAt: n.reservedAt, paidAt: n.paidAt
+  }));
   return {
     id: r.id,
     name: r.name,
@@ -137,7 +142,7 @@ function mapFrontendRifa(r) {
     img: r.img,
     tags: r.tags,
     status: r.status,
-    numbers: r.numbers.map(n => ({ num: n.num, status: n.status, buyer: n.buyer, phone: n.phone, reservedAt: n.reservedAt, paidAt: n.paidAt })),
+    numbers: soldNumbers,
     winner: r.winner,
     createdAt: r.createdAt
   };
@@ -159,23 +164,20 @@ async function load() {
 
 let _saveTimer = null;
 async function save() {
-  // Salva no localStorage como backup
+  // Salva no localStorage como backup imediato
   localStorage.setItem('p7rifas', JSON.stringify(state.rifas));
-  // Debounce sync pro backend — SEMPRE usa o PIN do backend (830927)
-  if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async () => {
-    try {
-      const pin = getBackendPin();
-      const resp = await fetch(`${API_BASE}/api/rifa/sync-all`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rifas_data: state.rifas.map(mapFrontendRifa), admin_pin: pin }),
-      });
-      if (!resp.ok) {
-        console.warn('sync-all falhou:', resp.status, await resp.text());
-      }
-    } catch (e) { console.warn('Erro ao sincronizar com backend:', e); }
-  }, 1000);
+  // Sync imediato pro backend (sem debounce) — garante que salva pra todos
+  try {
+    const pin = getBackendPin();
+    const resp = await fetch(`${API_BASE}/api/rifa/sync-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rifas_data: state.rifas.map(mapFrontendRifa), admin_pin: pin }),
+    });
+    if (!resp.ok) {
+      console.warn('sync-all falhou:', resp.status);
+    }
+  } catch (e) { console.warn('Erro ao sincronizar com backend:', e); }
 }
 
 // ===== UTILS =====
